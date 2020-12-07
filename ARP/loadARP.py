@@ -37,6 +37,13 @@ def normalize_image(img):
     return (img.astype('float32') / 255 - rgb_mean) / rgb_std
 
 
+def generate_shadow_mask(pred, img):
+    merge_img = pred * img
+    merge_img = cv2.addWeighted(img, 1, merge_img, 0.5, 0)
+
+    return merge_img
+
+
 if __name__ == '__main__':
     img_path = '../images/strasbourg_000000_004951_leftImg8bit.png'
     img = cv2.cvtColor(image.imread(img_path).asnumpy(), cv2.COLOR_BGR2RGB)
@@ -46,9 +53,7 @@ if __name__ == '__main__':
     pred = predict(img_path, net).asnumpy()
     pred = np.array(cv2.cvtColor(pred, cv2.COLOR_GRAY2BGR), dtype=np.uint8)
 
-    merge_img = pred * img
-    merge_img = cv2.addWeighted(img, 1, merge_img, 0.5, 0)
-
+    merge_img = generate_shadow_mask(pred, img)
     # 保存
     # cv2.imwrite('sample.png', merge_img)
 
