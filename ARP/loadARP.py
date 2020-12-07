@@ -9,9 +9,9 @@ MODEL_NAME = 'res34_cbam_parallel'
 CTX = utils.try_all_gpus()
 
 
-def load_model(model):
+def load_model(model, arp_path='../param/res34_bcam_parallel_625_0.2043_0.945_9.74.params'):
     net = model
-    import_path = '../param/res34_bcam_parallel_625_0.2043_0.945_9.74.params'
+    import_path = arp_path
 
     net.load_parameters(import_path)
     net.collect_params().reset_ctx(CTX)
@@ -37,9 +37,9 @@ def normalize_image(img):
     return (img.astype('float32') / 255 - rgb_mean) / rgb_std
 
 
-def generate_shadow_mask(pred, img):
+def generate_shadow_mask(pred, img, shadow_percent=0.5):
     merge_img = pred * img
-    merge_img = cv2.addWeighted(img, 1, merge_img, 0.5, 0)
+    merge_img = cv2.addWeighted(img, 1, merge_img, shadow_percent, 0)
 
     return merge_img
 

@@ -31,8 +31,8 @@ def random_color():
     return b, g, r
 
 
-def predict(image, model):
-    img = cv2.imread(image)
+def predict(image, model, mode='img'):
+    img = cv2.imread(image) if mode == 'img' else image
     result = img.copy()
     dst = img.copy()
     img = to_tensor(img)
@@ -53,7 +53,7 @@ def predict(image, model):
 
     m_bOK = False
     for idx in range(boxes.shape[0]):
-        if scores[idx] >= 0.8:
+        if scores[idx] >= 0.3:
             m_bOK = True
             color = random_color()
             mask = masks[idx, 0].mul(255).byte().cpu().numpy()
