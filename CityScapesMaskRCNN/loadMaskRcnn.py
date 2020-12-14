@@ -31,7 +31,7 @@ def random_color():
     return b, g, r
 
 
-def predict(image, model, mode='img'):
+def predict(image, model, mode='img', show_cv=False):
     img = cv2.imread(image) if mode == 'img' else image
     result = img.copy()
     dst = img.copy()
@@ -71,10 +71,12 @@ def predict(image, model, mode='img'):
 
             dst1 = cv2.addWeighted(result, 0.7, dst, 0.3, 0)
 
-    if m_bOK:
+    if m_bOK and show_cv:
         cv2.imshow('sample', dst1)
         cv2.waitKey()
         cv2.destroyAllWindows()
+
+    return dst1
 
 
 if __name__ == '__main__':

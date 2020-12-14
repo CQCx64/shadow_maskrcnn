@@ -5,6 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/ARP" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/ARP/model" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/CityScapesMaskRCNN" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/windows" isTestSource="false" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
