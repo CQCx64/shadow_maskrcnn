@@ -52,6 +52,8 @@ def predict(image, model, mode='img', show_cv=False):
     masks = prediction[0]['masks']
 
     m_bOK = False
+    has_dst = False
+
     for idx in range(boxes.shape[0]):
         if scores[idx] >= 0.3:
             m_bOK = True
@@ -70,13 +72,16 @@ def predict(image, model, mode='img', show_cv=False):
                         fontScale=0.5, thickness=1, lineType=cv2.LINE_AA, color=color)
 
             dst1 = cv2.addWeighted(result, 0.7, dst, 0.3, 0)
+            has_dst = True
 
-    if m_bOK and show_cv:
+    if m_bOK and show_cv and has_dst:
         cv2.imshow('sample', dst1)
         cv2.waitKey()
         cv2.destroyAllWindows()
-
-    return dst1
+    if has_dst:
+        return dst1
+    else:
+        return None
 
 
 if __name__ == '__main__':
