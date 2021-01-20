@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import QWidget
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog, msg="正在预测，请勿关闭应用程序！"):
-        print(msg)
         Dialog.setObjectName("Dialog")
         Dialog.resize(364, 186)
         self.label = QtWidgets.QLabel(Dialog)
