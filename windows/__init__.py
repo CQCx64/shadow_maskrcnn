@@ -1,7 +1,6 @@
 import datetime
 
 import cv2
-
 import media_choose_dialog
 import sys
 from PyQt5.QtWidgets import QApplication, QMainWindow

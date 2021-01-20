@@ -314,6 +314,7 @@ class Ui_ShadowRCNN(QWidget):
         cv2.imwrite(image_name, frame)
         self.continue_list.append(image_name)
 
+        # 结束拍照
         if self.now_continue_num == 9:
             self.timer.stop()
             self.msgDialog.msg_dialog.label.setText('正在处理结果')
