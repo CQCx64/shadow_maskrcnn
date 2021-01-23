@@ -21,8 +21,8 @@ def load_model(model, arp_path='../param/res34_bcam_parallel_625_0.2043_0.945_9.
 
 
 def predict(img, net):
-    X = image.imread(img)
-
+    # X = image.imread(img)
+    X = nd.array(img)
     X = normalize_image(X).as_in_context(CTX[0])
     # X = (X.astype('float32') / 255).as_in_context(CTX[0])
     X = X.transpose((2, 0, 1)).expand_dims(axis=0)

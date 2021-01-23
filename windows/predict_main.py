@@ -13,6 +13,8 @@ import os, sys
 import cv2
 import torch
 import torchvision
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtMultimediaWidgets import QVideoWidget
 from mxnet import image
 import numpy as np
 
@@ -36,6 +38,7 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 RCNN_MODEL = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=False, num_classes=NUM_CLASS)
 RCNN_PATH = '../param/model_new_1.pth'
 PARAMS = {}
+PARAMS['all_file_path'] = []
 
 
 class msg_dialog(QDialog):
@@ -116,6 +119,20 @@ class Ui_ShadowRCNN(QWidget):
                                  "QLabel{color:rgb(300,300,300,120);font-size:20px;font-weight:bold;}"
                                  )
 
+        self.wgt_video = QVideoWidget(self.centralwidget)
+        self.wgt_video.setGeometry(QtCore.QRect(160, 40, 1280, 720))
+        self.player = QMediaPlayer()
+        self.player.setVideoOutput(self.wgt_video)
+        self.wgt_video.hide()
+        self.wgt_video.setObjectName("widget")
+
+        self.pushButton_play = QtWidgets.QPushButton(self.centralwidget)
+        self.pushButton_play.setVisible(False)
+        self.pushButton_play.setGeometry(QtCore.QRect(1480, 40, 80, 41))
+        self.pushButton_play.setObjectName("pushButton")
+        self.video_is_play = False
+        self.pushButton_play.clicked.connect(self.video_play_change)
+
         self.pushButton = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton.setGeometry(QtCore.QRect(100, 790, 161, 41))
         self.pushButton.setObjectName("pushButton")
@@ -184,6 +201,7 @@ class Ui_ShadowRCNN(QWidget):
         self.label.setText(_translate("ShadowRCNN", "请选择图片"))
         self.pushButton.setText(_translate("ShadowRCNN", "选择图片"))
         self.pushButton1.setText(_translate("ShadowRCNN", "开始预测"))
+        self.pushButton_play.setText(_translate("ShadowRCNN", "暂停"))
         self.pushButton_camera.setText(_translate("ShadowRCNN", "拍摄照片"))
         self.pushButton_video.setText(_translate("ShadowRCNN", "选择视频"))
         self.pushButton_delete.setText(_translate("ShadowRCNN", "删除缓存"))
@@ -199,6 +217,11 @@ class Ui_ShadowRCNN(QWidget):
         self.image_choose_dialog._signal.connect(self.get_image)
 
     def get_image(self, imgName):
+        self.label.clear()
+        self.player.setMedia(QMediaContent())
+        self.wgt_video.hide()
+        self.label.show()
+        self.pushButton_play.setVisible(False)
         jpg = QtGui.QPixmap(imgName).scaled(self.label.width(), self.label.height())
         if imgName != '':
             self.label.setPixmap(jpg)
@@ -206,43 +229,72 @@ class Ui_ShadowRCNN(QWidget):
         PARAMS['imgPath'] = imgName
         self.image_choose_dialog.close()
 
-    def ARP_predict(self):
-        manager = multiprocessing.Manager()
-        return_dict = manager.dict()
-        p = multiprocessing.Process(target=ARP_predict,
-                                    args=(return_dict, PARAMS['imgPath'], ARP_MODEL_NAME, ARP_PATH, SHADOW_PERCENT))
-        p.start()
-        p.join()
-
-        PARAMS['ARP_result'] = return_dict.values()[0]
+    def ARP_predict(self, mode='image'):
         shadow_write_path, shadow_write_name = os.path.split(PARAMS['imgPath'])
         shadow_write_name = shadow_write_name.split('.')[0] + '_shadow' + '.' + shadow_write_name.split('.')[1]
-        shadow_write_path = os.path.join(shadow_write_path, shadow_write_name)
-        cv2.imwrite(shadow_write_path, PARAMS['ARP_result'])
-        if 'shadow_write_path' not in PARAMS.keys():
-            PARAMS['shadow_write_path'] = []
-        PARAMS['shadow_write_path'].append(shadow_write_path)
-        jpg = QtGui.QPixmap(shadow_write_path).scaled(self.label.width(), self.label.height())
-        self.label.setPixmap(jpg)
+        self.shadow_write_path = os.path.join(shadow_write_path, shadow_write_name)
+        print(self.shadow_write_path)
+        if mode == 'image':
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
+            p = multiprocessing.Process(target=ARP_predict,
+                                        args=(return_dict, PARAMS['imgPath'], ARP_MODEL_NAME, ARP_PATH, SHADOW_PERCENT))
+            p.start()
+            p.join()
 
-    def rcnn_predict(self):
-        manager = multiprocessing.Manager()
-        return_dict = manager.dict()
-        p = multiprocessing.Process(target=rcnn_predict, args=(return_dict, PARAMS['ARP_result'], False, RCNN_PATH))
-        p.start()
-        p.join()
+            PARAMS['ARP_result'] = return_dict.values()[0]
+            cv2.imwrite(self.shadow_write_path, PARAMS['ARP_result'])
+            if 'shadow_write_path' not in PARAMS.keys():
+                PARAMS['shadow_write_path'] = []
+            PARAMS['shadow_write_path'].append(self.shadow_write_path)
+            PARAMS['all_file_path'].append(self.shadow_write_path)
+        elif mode == 'video':
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
+            p = multiprocessing.Process(target=ARP_predict,
+                                        args=(
+                                            return_dict, PARAMS['imgPath'], ARP_MODEL_NAME, ARP_PATH,
+                                            SHADOW_PERCENT, 'video', self.shadow_write_path))
+            p.start()
+            p.join()
 
-        PARAMS['RCNN_result'] = return_dict.values()[0]
-        if PARAMS['RCNN_result'] is not None:
-            rcnn_write_path, rcnn_write_name = os.path.split(PARAMS['imgPath'])
-            rcnn_write_name = rcnn_write_name.split('.')[0] + '_rcnn' + '.' + rcnn_write_name.split('.')[1]
-            rcnn_write_path = os.path.join(rcnn_write_path, rcnn_write_name)
-            cv2.imwrite(rcnn_write_path, PARAMS['RCNN_result'])
-            if 'rcnn_write_path' not in PARAMS.keys():
-                PARAMS['rcnn_write_path'] = []
-            PARAMS['rcnn_write_path'].append(rcnn_write_path)
-            jpg = QtGui.QPixmap(rcnn_write_path).scaled(self.label.width(), self.label.height())
-            self.label.setPixmap(jpg)
+            PARAMS['all_file_path'].append(self.shadow_write_path)
+
+    def rcnn_predict(self, mode='image'):
+        rcnn_write_path, rcnn_write_name = os.path.split(PARAMS['imgPath'])
+        rcnn_write_name = rcnn_write_name.split('.')[0] + '_rcnn' + '.' + rcnn_write_name.split('.')[1]
+        self.rcnn_write_path = os.path.join(rcnn_write_path, rcnn_write_name)
+        print(self.rcnn_write_path)
+        if mode == 'image':
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
+            p = multiprocessing.Process(target=rcnn_predict,
+                                        args=(return_dict, PARAMS['ARP_result'], False, RCNN_PATH))
+            p.start()
+            p.join()
+            PARAMS['RCNN_result'] = return_dict.values()[0]
+            if PARAMS['RCNN_result'] is not None:
+                cv2.imwrite(self.rcnn_write_path, PARAMS['RCNN_result'])
+                if 'rcnn_write_path' not in PARAMS.keys():
+                    PARAMS['rcnn_write_path'] = []
+                PARAMS['rcnn_write_path'].append(self.rcnn_write_path)
+                PARAMS['all_file_path'].append(self.rcnn_write_path)
+                jpg = QtGui.QPixmap(self.rcnn_write_path).scaled(self.label.width(), self.label.height())
+                self.label.setPixmap(jpg)
+        elif mode == 'video':
+            manager = multiprocessing.Manager()
+            return_dict = manager.dict()
+            p = multiprocessing.Process(target=rcnn_predict,
+                                        args=(return_dict, self.shadow_write_path, False, RCNN_PATH,
+                                              'video', self.rcnn_write_path))
+            p.start()
+            p.join()
+
+            PARAMS['all_file_path'].append(self.rcnn_write_path)
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(self.rcnn_write_path)))
+            self.player.play()
+            self.video_is_play = True
+            self.pushButton_play.setText('暂停')
 
     def predict(self):
         if 'imgPath' in PARAMS.keys():
@@ -253,7 +305,7 @@ class Ui_ShadowRCNN(QWidget):
             self.timer.start(500)
             self.statusbar.showMessage('预测完成')
         else:
-            msg = QMessageBox.information(self, '提示', '请先选择图片', QMessageBox.Yes, QMessageBox.Yes)
+            msg = QMessageBox.information(self, '提示', '请先选择图片或视频', QMessageBox.Yes, QMessageBox.Yes)
 
     def continue_camera(self, state):
         # state 0 没选中 1 选中
@@ -265,6 +317,11 @@ class Ui_ShadowRCNN(QWidget):
             self.line_second.setEnabled(True)
 
     def camera(self):
+        self.label.clear()
+        self.player.setMedia(QMediaContent())
+        self.wgt_video.hide()
+        self.label.show()
+        self.pushButton_play.setVisible(False)
         if self.check_continue.checkState() != QtCore.Qt.Checked:
             self.pushButton_camera.setText('按Q拍照')
             cap = cv2.VideoCapture(0)
@@ -281,6 +338,7 @@ class Ui_ShadowRCNN(QWidget):
                     cap.release()  # 释放摄像头
                     cv2.destroyAllWindows()  # 删除建立的全部窗口
                     PARAMS['imgPath'] = cap_name
+                    PARAMS['all_file_path'].append(cap_name)
                     self.pushButton_camera.setText('拍摄照片')
                     break
 
@@ -300,7 +358,7 @@ class Ui_ShadowRCNN(QWidget):
             self.timer = QTimer()
             self.continue_list = []
             self.timer.timeout.connect(self.start_continue_photo)
-            self.timer.start(int(1000/int(per_second_photo_num)))
+            self.timer.start(int(1000 / int(per_second_photo_num)))
 
     def start_continue_photo(self):
         self.now_continue_num += 1
@@ -312,6 +370,7 @@ class Ui_ShadowRCNN(QWidget):
         cv2.imshow("Capture", frame)
         image_name = '../images/capimg_' + str(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')) + '.jpg'
         cv2.imwrite(image_name, frame)
+        PARAMS['all_file_path'].append(image_name)
         self.continue_list.append(image_name)
 
         # 结束拍照
@@ -336,6 +395,7 @@ class Ui_ShadowRCNN(QWidget):
             # 展示结果
             continue_photo_name = '../images/' + self.continue_list[0][:-10] + '_9in1.jpg'
             PARAMS['imgPath'] = continue_photo_name
+            PARAMS['all_file_path'].append(continue_photo_name)
             cv2.imwrite(continue_photo_name, continue_photo)
             jpg = QtGui.QPixmap(continue_photo_name).scaled(self.label.width(), self.label.height())
             self.label.setPixmap(jpg)
@@ -346,21 +406,48 @@ class Ui_ShadowRCNN(QWidget):
         self.video_choose_dialog._signal.connect(self.get_video)
 
     def get_video(self, videoName):
-        jpg = QtGui.QPixmap(videoName).scaled(self.label.width(), self.label.height())
         if videoName != '':
-            self.label.setPixmap(jpg)
+            self.label.clear()
+            self.player.setMedia(QMediaContent())
+            self.wgt_video.show()
+            self.label.hide()
+            self.player.setMedia(QMediaContent(QUrl.fromLocalFile(videoName)))
+            self.player.play()
+            self.video_is_play = True
+            self.pushButton_play.setVisible(True)
             self.statusbar.showMessage('当前视频：' + videoName)
         PARAMS['imgPath'] = videoName
         self.video_choose_dialog.close()
 
+    def video_play_change(self):
+        self.video_is_play = bool(1 - self.video_is_play)
+        if self.video_is_play:
+            self.player.play()
+            self.pushButton_play.setText('暂停')
+        else:
+            self.player.pause()
+            self.pushButton_play.setText('播放')
+
     def delete(self):
-        print('delete')
+        self.label.clear()
+        self.player.setMedia(QMediaContent())
+        file_num = 0
+        for file_name in PARAMS['all_file_path']:
+            if os.path.exists(file_name):
+                os.remove(file_name)
+                file_num += 1
+        self.statusbar.showMessage('缓存清除成功，共' + str(file_num) + '个文件')
 
     def history(self):
         print('history')
 
     def start_connect(self):
-        self.ARP_predict()
-        self.rcnn_predict()
+        if str(PARAMS['imgPath']).endswith(('png', 'jpg')):
+            self.ARP_predict()
+            self.rcnn_predict()
+        else:
+            self.ARP_predict(mode='video')
+            self.rcnn_predict(mode='video')
+
         self.timer.stop()
         self.msgDialog.close()
