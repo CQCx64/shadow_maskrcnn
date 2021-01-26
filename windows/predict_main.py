@@ -24,9 +24,9 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 
 import dialog
+import login
 import media_choose_dialog
-import get_net
-import loadARP
+import MySQLdb
 from predict_terminal import ARP_predict, rcnn_predict
 
 ARP_MODEL_NAME = 'res34_cbam_parallel'
@@ -104,6 +104,84 @@ class media_dialog(QDialog):
 
 
 class Ui_ShadowRCNN(QWidget):
+    def db_select(self, sql):
+        db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
+        cursor = db.cursor()
+        results = None
+        try:
+            cursor.execute(sql)
+            results = cursor.fetchall()
+        except Exception:
+            print('查询失败')
+        db.close()
+
+        return results
+
+    def db_insert(self, sql):
+        db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
+        cursor = db.cursor()
+        try:
+            cursor.execute(sql)
+            db.commit()
+        except Exception:
+            print('插入失败')
+            db.rollback()
+        db.close()
+
+    def login(self, Dialog):
+        self.login_dialog = login.Ui_Dialog()
+        self.login_dialog.setupUi(Dialog)
+        self.login_dialog.pushButton.clicked.connect(lambda: self.login_operation(Dialog))
+        self.login_dialog.toolButton.clicked.connect(self.open_path)
+
+    def open_path(self):
+        param_path, _ = QFileDialog.getOpenFileName(QWidget(), "选择文件", "../param",
+                                                       "*.pth;;;All Files(*)")
+        if param_path != '':
+            self.login_dialog.lineEdit_3.setText(param_path)
+
+    def login_operation(self, Dialog):
+        global RCNN_PATH
+        success = False
+        error = ''
+        if self.login_dialog.radioButton_2.isChecked():
+            self.is_guest = True
+            self.user_name = '游客'
+            success = True
+        if self.login_dialog.radioButton.isChecked():
+            username = self.login_dialog.lineEdit.text()
+            password = self.login_dialog.lineEdit_2.text()
+            if username.strip() == '' or password.strip() == '':
+                error = 'blank'
+            else:
+                results = self.db_select('select * from tb_user')
+                for result in results:
+                    if username == result[0]:
+                        if password == result[1]:
+                            self.user_name = username
+                            success = True
+                            break
+                        else:
+                            error = 'wrong'
+                            break
+                if not success and error == '':
+                    sql = 'insert into tb_user(username, password)values("%s", "%s")' % (username, password)
+                    self.db_insert(sql)
+                    msg = QMessageBox.information(self, '提示', '已为您自动注册用户名%s' % username, QMessageBox.Ok, QMessageBox.Ok)
+                    self.user_name = username
+                    success = True
+        if success:
+            RCNN_PATH = self.login_dialog.lineEdit_3.text()
+            Dialog.close()
+            self.main_window = QMainWindow()
+            self.setupUi(self.main_window)
+            self.main_window.show()
+        else:
+            if error == 'blank':
+                msg = QMessageBox.warning(self, '提示', '请输入正确的用户名与密码！', QMessageBox.Ok, QMessageBox.Ok)
+            elif error == 'wrong':
+                msg = QMessageBox.warning(self, '提示', '用户名或密码错误！', QMessageBox.Ok, QMessageBox.Ok)
+
     def setupUi(self, ShadowRCNN):
         ShadowRCNN.setObjectName("ShadowRCNN")
         ShadowRCNN.resize(1600, 900)
