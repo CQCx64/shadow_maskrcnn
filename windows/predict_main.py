@@ -39,6 +39,8 @@ RCNN_MODEL = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=False
 RCNN_PATH = '../param/model_new_1.pth'
 PARAMS = {}
 PARAMS['all_file_path'] = []
+IMAGE_PATH = '../images/'
+VIDEO_PATH = '../videos/'
 
 
 class msg_dialog(QDialog):
@@ -62,13 +64,13 @@ class media_dialog(QDialog):
 
     def locale(self):
         if self.media_type == '图片':
-            imgName, imgType = QFileDialog.getOpenFileName(QWidget(), "打开图片", "../images",
+            imgName, imgType = QFileDialog.getOpenFileName(QWidget(), "打开图片", IMAGE_PATH,
                                                            "*.png;;*.jpg;;All Files(*)")
             if imgName != '':
                 self._signal.emit(imgName)
 
         elif self.media_type == '视频':
-            videoName, videoType = QFileDialog.getOpenFileName(QWidget(), "打开视频", "../videos",
+            videoName, videoType = QFileDialog.getOpenFileName(QWidget(), "打开视频", VIDEO_PATH,
                                                                "*.mp4;;*.avi;;All Files(*)")
             if videoName != '':
                 self._signal.emit(videoName)
@@ -128,6 +130,17 @@ class Ui_ShadowRCNN(QWidget):
             db.rollback()
         db.close()
 
+    def db_delete(self, sql):
+        db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
+        cursor = db.cursor()
+        try:
+            cursor.execute(sql)
+            db.commit()
+        except Exception:
+            print('删除失败')
+            db.rollback()
+        db.close()
+
     def login(self, Dialog):
         self.login_dialog = login.Ui_Dialog()
         self.login_dialog.setupUi(Dialog)
@@ -136,14 +149,20 @@ class Ui_ShadowRCNN(QWidget):
 
     def open_path(self):
         param_path, _ = QFileDialog.getOpenFileName(QWidget(), "选择文件", "../param",
-                                                       "*.pth;;;All Files(*)")
+                                                    "*.pth;;;All Files(*)")
         if param_path != '':
             self.login_dialog.lineEdit_3.setText(param_path)
+            ######TODO 自定义参数的数据库连接
 
     def login_operation(self, Dialog):
         global RCNN_PATH
         success = False
         error = ''
+        self.is_guest = False
+        self.user_name = 'guest'
+        self.user_id = -1
+        self.param_id = 1
+
         if self.login_dialog.radioButton_2.isChecked():
             self.is_guest = True
             self.user_name = '游客'
@@ -156,9 +175,10 @@ class Ui_ShadowRCNN(QWidget):
             else:
                 results = self.db_select('select * from tb_user')
                 for result in results:
-                    if username == result[0]:
-                        if password == result[1]:
+                    if username == result[1]:
+                        if password == result[2]:
                             self.user_name = username
+                            self.user_id = result[0]
                             success = True
                             break
                         else:
@@ -169,9 +189,23 @@ class Ui_ShadowRCNN(QWidget):
                     self.db_insert(sql)
                     msg = QMessageBox.information(self, '提示', '已为您自动注册用户名%s' % username, QMessageBox.Ok, QMessageBox.Ok)
                     self.user_name = username
+                    sql = 'select * from tb_user order by user_id desc limit 1'
+                    results = self.db_select(sql)
+                    for result in results:
+                        self.user_id = result[0]
+                        print(self.user_id)
                     success = True
         if success:
-            RCNN_PATH = self.login_dialog.lineEdit_3.text()
+            global IMAGE_PATH
+            global VIDEO_PATH
+            IMAGE_PATH += self.user_name
+            VIDEO_PATH += self.user_name
+            if not os.path.exists(IMAGE_PATH):
+                os.makedirs(IMAGE_PATH)
+            if not os.path.exists(VIDEO_PATH):
+                os.makedirs(VIDEO_PATH)
+            if self.login_dialog.lineEdit_3.text() != '默认参数':
+                RCNN_PATH = self.login_dialog.lineEdit_3.text()
             Dialog.close()
             self.main_window = QMainWindow()
             self.setupUi(self.main_window)
@@ -184,18 +218,24 @@ class Ui_ShadowRCNN(QWidget):
 
     def setupUi(self, ShadowRCNN):
         ShadowRCNN.setObjectName("ShadowRCNN")
-        ShadowRCNN.resize(1600, 900)
+        ShadowRCNN.resize(1666, 900)
         self.centralwidget = QtWidgets.QWidget(ShadowRCNN)
         self.centralwidget.setObjectName("centralwidget")
 
         self.label = QtWidgets.QLabel(self.centralwidget)
-        self.label.setGeometry(QtCore.QRect(160, 40, 1280, 720))
+        self.label.setGeometry(QtCore.QRect(190, 40, 1280, 720))
         self.label.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         self.label.setAlignment(QtCore.Qt.AlignCenter)
         self.label.setObjectName("label")
         self.label.setStyleSheet("QLabel{background:white;}"
                                  "QLabel{color:rgb(300,300,300,120);font-size:20px;font-weight:bold;}"
                                  )
+
+        self.label_name = QtWidgets.QLabel(self.centralwidget)
+        self.label_name.setGeometry(QtCore.QRect(10, 5, 200, 40))
+        self.label_name.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
+        self.label_name.setObjectName("label")
+        self.label_name.setStyleSheet("QLabel{color:rgb(300,300,300,120);font-size:20px;font-weight:bold;}")
 
         self.wgt_video = QVideoWidget(self.centralwidget)
         self.wgt_video.setGeometry(QtCore.QRect(160, 40, 1280, 720))
@@ -206,7 +246,7 @@ class Ui_ShadowRCNN(QWidget):
 
         self.pushButton_play = QtWidgets.QPushButton(self.centralwidget)
         self.pushButton_play.setVisible(False)
-        self.pushButton_play.setGeometry(QtCore.QRect(1480, 40, 80, 41))
+        self.pushButton_play.setGeometry(QtCore.QRect(1513, 40, 80, 41))
         self.pushButton_play.setObjectName("pushButton")
         self.video_is_play = False
         self.pushButton_play.clicked.connect(self.video_play_change)
@@ -271,6 +311,11 @@ class Ui_ShadowRCNN(QWidget):
 
         self.timer = QTimer()
         self.retranslateUi(ShadowRCNN)
+
+        if self.is_guest:
+            self.pushButton_delete.setEnabled(False)
+            self.pushButton_history.setEnabled(False)
+
         QtCore.QMetaObject.connectSlotsByName(ShadowRCNN)
 
     def retranslateUi(self, ShadowRCNN):
@@ -288,6 +333,7 @@ class Ui_ShadowRCNN(QWidget):
         self.label1.setText(_translate("ShadowRCNN", "每秒"))
         self.line_second.setText(_translate("ShadowRCNN", "1"))
         self.label2.setText(_translate("ShadowRCNN", "张"))
+        self.label_name.setText(_translate("ShadowRCNN", "欢迎使用，" + self.user_name))
 
     def open_image(self):
         self.image_choose_dialog = media_dialog(media_type='图片')
@@ -373,6 +419,11 @@ class Ui_ShadowRCNN(QWidget):
             self.player.play()
             self.video_is_play = True
             self.pushButton_play.setText('暂停')
+        if not self.is_guest:
+            sql = 'insert into tb_record(path,type,user_id,param_id,time)values("%s","%s",%s,%s,"%s")' \
+                  % (self.rcnn_write_path.replace('\\', '/'), mode, self.user_id, self.param_id,
+                     str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+            self.db_insert(sql)
 
     def predict(self):
         if 'imgPath' in PARAMS.keys():
@@ -513,6 +564,10 @@ class Ui_ShadowRCNN(QWidget):
         for file_name in PARAMS['all_file_path']:
             if os.path.exists(file_name):
                 os.remove(file_name)
+                if '_rcnn' in file_name:
+                    print(file_name)
+                    sql = 'delete from tb_record where path="%s"' % file_name.replace('\\', '/')
+                    self.db_delete(sql)
                 file_num += 1
         self.statusbar.showMessage('缓存清除成功，共' + str(file_num) + '个文件')
 
