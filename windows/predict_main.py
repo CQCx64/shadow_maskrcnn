@@ -25,6 +25,7 @@ from PyQt5.QtCore import *
 
 import dialog
 import login
+import history
 import media_choose_dialog
 import MySQLdb
 from predict_terminal import ARP_predict, rcnn_predict
@@ -41,6 +42,54 @@ PARAMS = {}
 PARAMS['all_file_path'] = []
 IMAGE_PATH = '../images/'
 VIDEO_PATH = '../videos/'
+
+
+class history_dialog(QDialog):
+    def __init__(self, user_id, user_name):
+        QDialog.__init__(self)
+        self.his_dialog = history.Ui_Dialog()
+        self.his_dialog.setupUi(self)
+        self.his_dialog.label_3.setText('用户%s历史检测结果' % user_name)
+        model = self.his_dialog.createHistoryModel(self)
+
+        self.his_dialog.treeView.setModel(model)
+        self.his_dialog.treeView.setColumnWidth(0, self.his_dialog.treeView.width() / 10 * 2.5)
+        self.his_dialog.treeView.setColumnWidth(1, self.his_dialog.treeView.width() / 10 * 2.5)
+        self.his_dialog.treeView.setColumnWidth(2, self.his_dialog.treeView.width() / 10 * 0.5)
+        self.his_dialog.treeView.setColumnWidth(3, self.his_dialog.treeView.width() / 10 * 2.5)
+        self.his_dialog.treeView.setColumnWidth(4, self.his_dialog.treeView.width() / 10 * 2)
+
+        self.his_dialog.treeView.clicked.connect(self.clickItem)
+        results = db_select(sql='select * from tb_record where user_id=%s' % user_id)
+        if results is ():
+            self.his_dialog.add_history(model, '暂无记录', '', '', '', '')
+        else:
+            for result in results:
+
+                param = db_select(sql='select * from tb_param where param_id=%s' % result[4])[0][1]
+                self.his_dialog.add_history(model, os.path.split(result[1])[-1], result[1],
+                                            '图片' if result[2] == 'image' else '视频', param, result[5])
+
+    def clickItem(self, index):
+        path_index = self.his_dialog.treeView.model().index(index.row(), 1, index.parent())
+        type_index = self.his_dialog.treeView.model().index(index.row(), 2, index.parent())
+        param_index = self.his_dialog.treeView.model().index(index.row(), 3, index.parent())
+        predict_path = str(path_index.data())
+        media_path = str(predict_path).replace('_rcnn', '')
+        media_type = str(type_index.data())
+        param_path = str(param_index.data())
+        if media_type == '图片':
+            jpg_origin = QtGui.QPixmap(media_path).scaled(self.his_dialog.label.width(), self.his_dialog.label.height())
+            self.his_dialog.label.setPixmap(jpg_origin)
+            jpg_predict = QtGui.QPixmap(predict_path).scaled(self.his_dialog.label_2.width(), self.his_dialog.label_2.height())
+            self.his_dialog.label_2.setPixmap(jpg_predict)
+        elif media_type == '视频':
+            pass
+            # TODO 视频展示处理
+
+        results = db_select(sql='select * from tb_param where path="%s"' % param_path.replace('\\', '\\\\'))
+        self.his_dialog.get_param_info(results[0][2], results[0][3], results[0][4],
+                                       results[0][5], results[0][6], results[0][7])
 
 
 class msg_dialog(QDialog):
@@ -105,42 +154,45 @@ class media_dialog(QDialog):
         self._signal.emit(media_Name)
 
 
+def db_select(sql):
+    db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
+    cursor = db.cursor()
+    results = None
+    try:
+        cursor.execute(sql)
+        results = cursor.fetchall()
+    except Exception:
+        print('查询失败')
+    db.close()
+
+    return results
+
+
+def db_insert(sql):
+    db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
+    cursor = db.cursor()
+    try:
+        cursor.execute(sql)
+        db.commit()
+    except Exception:
+        print('插入失败')
+        db.rollback()
+    db.close()
+
+
+def db_delete(sql):
+    db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
+    cursor = db.cursor()
+    try:
+        cursor.execute(sql)
+        db.commit()
+    except Exception:
+        print('删除失败')
+        db.rollback()
+    db.close()
+
+
 class Ui_ShadowRCNN(QWidget):
-    def db_select(self, sql):
-        db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
-        cursor = db.cursor()
-        results = None
-        try:
-            cursor.execute(sql)
-            results = cursor.fetchall()
-        except Exception:
-            print('查询失败')
-        db.close()
-
-        return results
-
-    def db_insert(self, sql):
-        db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
-        cursor = db.cursor()
-        try:
-            cursor.execute(sql)
-            db.commit()
-        except Exception:
-            print('插入失败')
-            db.rollback()
-        db.close()
-
-    def db_delete(self, sql):
-        db = MySQLdb.connect('localhost', 'root', '123456', 'shadowrcnn', charset='utf8')
-        cursor = db.cursor()
-        try:
-            cursor.execute(sql)
-            db.commit()
-        except Exception:
-            print('删除失败')
-            db.rollback()
-        db.close()
-
     def login(self, Dialog):
         self.login_dialog = login.Ui_Dialog()
         self.login_dialog.setupUi(Dialog)
@@ -173,7 +225,7 @@ class Ui_ShadowRCNN(QWidget):
             if username.strip() == '' or password.strip() == '':
                 error = 'blank'
             else:
-                results = self.db_select('select * from tb_user')
+                results = db_select('select * from tb_user')
                 for result in results:
                     if username == result[1]:
                         if password == result[2]:
@@ -186,11 +238,11 @@ class Ui_ShadowRCNN(QWidget):
                             break
                 if not success and error == '':
                     sql = 'insert into tb_user(username, password)values("%s", "%s")' % (username, password)
-                    self.db_insert(sql)
+                    db_insert(sql)
                     msg = QMessageBox.information(self, '提示', '已为您自动注册用户名%s' % username, QMessageBox.Ok, QMessageBox.Ok)
                     self.user_name = username
                     sql = 'select * from tb_user order by user_id desc limit 1'
-                    results = self.db_select(sql)
+                    results = db_select(sql)
                     for result in results:
                         self.user_id = result[0]
                         print(self.user_id)
@@ -238,7 +290,7 @@ class Ui_ShadowRCNN(QWidget):
         self.label_name.setStyleSheet("QLabel{color:rgb(300,300,300,120);font-size:20px;font-weight:bold;}")
 
         self.wgt_video = QVideoWidget(self.centralwidget)
-        self.wgt_video.setGeometry(QtCore.QRect(160, 40, 1280, 720))
+        self.wgt_video.setGeometry(QtCore.QRect(190, 40, 1280, 720))
         self.player = QMediaPlayer()
         self.player.setVideoOutput(self.wgt_video)
         self.wgt_video.hide()
@@ -423,7 +475,7 @@ class Ui_ShadowRCNN(QWidget):
             sql = 'insert into tb_record(path,type,user_id,param_id,time)values("%s","%s",%s,%s,"%s")' \
                   % (self.rcnn_write_path.replace('\\', '/'), mode, self.user_id, self.param_id,
                      str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
-            self.db_insert(sql)
+            db_insert(sql)
 
     def predict(self):
         if 'imgPath' in PARAMS.keys():
@@ -567,12 +619,13 @@ class Ui_ShadowRCNN(QWidget):
                 if '_rcnn' in file_name:
                     print(file_name)
                     sql = 'delete from tb_record where path="%s"' % file_name.replace('\\', '/')
-                    self.db_delete(sql)
+                    db_delete(sql)
                 file_num += 1
         self.statusbar.showMessage('缓存清除成功，共' + str(file_num) + '个文件')
 
     def history(self):
-        print('history')
+        self.his_dialog = history_dialog(self.user_id, self.user_name)
+        self.his_dialog.show()
 
     def start_connect(self):
         if str(PARAMS['imgPath']).endswith(('png', 'jpg')):
