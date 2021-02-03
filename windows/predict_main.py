@@ -47,49 +47,143 @@ VIDEO_PATH = '../videos/'
 class history_dialog(QDialog):
     def __init__(self, user_id, user_name):
         QDialog.__init__(self)
+        self.video_is_play = False
+        self.user_id = user_id
         self.his_dialog = history.Ui_Dialog()
         self.his_dialog.setupUi(self)
         self.his_dialog.label_3.setText('用户%s历史检测结果' % user_name)
-        model = self.his_dialog.createHistoryModel(self)
+        self.get_list()
 
-        self.his_dialog.treeView.setModel(model)
+    def get_list(self):
+        self.his_dialog.pushButton.hide()
+        self.his_dialog.pushButton_2.hide()
+        self.his_dialog.pushButton_3.hide()
+        self.his_dialog.pushButton_4.hide()
+        self.his_dialog.pushButton_5.hide()
+        self.his_dialog.pushButton_6.hide()
+        self.model = self.his_dialog.createHistoryModel(self)
+        self.his_dialog.treeView.setModel(self.model)
         self.his_dialog.treeView.setColumnWidth(0, self.his_dialog.treeView.width() / 10 * 2.5)
         self.his_dialog.treeView.setColumnWidth(1, self.his_dialog.treeView.width() / 10 * 2.5)
         self.his_dialog.treeView.setColumnWidth(2, self.his_dialog.treeView.width() / 10 * 0.5)
         self.his_dialog.treeView.setColumnWidth(3, self.his_dialog.treeView.width() / 10 * 2.5)
         self.his_dialog.treeView.setColumnWidth(4, self.his_dialog.treeView.width() / 10 * 2)
-
-        self.his_dialog.treeView.clicked.connect(self.clickItem)
-        results = db_select(sql='select * from tb_record where user_id=%s' % user_id)
+        results = db_select(sql='select * from tb_record where user_id=%s' % self.user_id)
         if results is ():
-            self.his_dialog.add_history(model, '暂无记录', '', '', '', '')
+            self.his_dialog.treeView.disconnect()
+            self.his_dialog.add_history(self.model, '暂无记录', '', '', '', '')
         else:
+            self.his_dialog.treeView.clicked.connect(self.clickItem)
             for result in results:
-
                 param = db_select(sql='select * from tb_param where param_id=%s' % result[4])[0][1]
-                self.his_dialog.add_history(model, os.path.split(result[1])[-1], result[1],
-                                            '图片' if result[2] == 'image' else '视频', param, result[5])
+                self.his_dialog.add_history(self.model, os.path.split(result[1])[-1].split('.')[0][:-20]
+                                            + '.' + os.path.split(result[1])[-1].split('.')[1], result[1],
+                                            '图片' if result[3] == 'image' else '视频', param, result[6])
 
     def clickItem(self, index):
         path_index = self.his_dialog.treeView.model().index(index.row(), 1, index.parent())
         type_index = self.his_dialog.treeView.model().index(index.row(), 2, index.parent())
         param_index = self.his_dialog.treeView.model().index(index.row(), 3, index.parent())
         predict_path = str(path_index.data())
-        media_path = str(predict_path).replace('_rcnn', '')
+        media_path = str(predict_path.split('.')[0][:-20] + '.' + predict_path.split('.')[1])
         media_type = str(type_index.data())
         param_path = str(param_index.data())
+
+        shadow_path = db_select(sql='select shadow from tb_record where path="%s"' % predict_path)[0][0]
+        self.his_dialog.pushButton.clicked.connect(lambda: self.deleteHistory(predict_path, shadow_path, media_type))
+
         if media_type == '图片':
+            self.his_dialog.pushButton_2.disconnect()
+            self.his_dialog.pushButton_3.disconnect()
+            self.his_dialog.pushButton_4.hide()
+            self.his_dialog.wgt_video_1.hide()
+            self.his_dialog.wgt_video_2.hide()
+            self.his_dialog.label.show()
+            self.his_dialog.label_2.show()
+            self.his_dialog.pushButton.show()
+            self.his_dialog.pushButton_2.show()
+            self.his_dialog.pushButton_3.show()
+            self.his_dialog.pushButton_5.hide()
+            self.his_dialog.pushButton_6.hide()
             jpg_origin = QtGui.QPixmap(media_path).scaled(self.his_dialog.label.width(), self.his_dialog.label.height())
             self.his_dialog.label.setPixmap(jpg_origin)
-            jpg_predict = QtGui.QPixmap(predict_path).scaled(self.his_dialog.label_2.width(), self.his_dialog.label_2.height())
+            jpg_predict = QtGui.QPixmap(predict_path).scaled(self.his_dialog.label_2.width(),
+                                                             self.his_dialog.label_2.height())
             self.his_dialog.label_2.setPixmap(jpg_predict)
+            self.his_dialog.pushButton_2.clicked.connect(lambda: self.expandImage(media_path))
+            self.his_dialog.pushButton_3.clicked.connect(lambda: self.expandImage(predict_path))
         elif media_type == '视频':
-            pass
-            # TODO 视频展示处理
+            self.his_dialog.pushButton_5.disconnect()
+            self.his_dialog.pushButton_6.disconnect()
+            self.his_dialog.pushButton.show()
+            self.his_dialog.pushButton_2.hide()
+            self.his_dialog.pushButton_3.hide()
+            self.his_dialog.pushButton_5.show()
+            self.his_dialog.pushButton_6.show()
+            self.his_dialog.pushButton_4.setText('暂停')
+            self.his_dialog.pushButton_4.show()
+            self.his_dialog.pushButton_4.clicked.connect(self.video_play_change)
+            self.his_dialog.wgt_video_1.show()
+            self.his_dialog.wgt_video_2.show()
+            self.his_dialog.label.hide()
+            self.his_dialog.label_2.hide()
+            self.his_dialog.player_1.setMedia(QMediaContent(QUrl.fromLocalFile(media_path)))
+            self.his_dialog.player_1.play()
+            self.his_dialog.player_2.setMedia(QMediaContent(QUrl.fromLocalFile(predict_path)))
+            self.his_dialog.player_2.play()
+            self.video_is_play = True
+            self.his_dialog.pushButton_5.clicked.connect(lambda: self.expandVideo(media_path))
+            self.his_dialog.pushButton_6.clicked.connect(lambda: self.expandVideo(predict_path))
 
         results = db_select(sql='select * from tb_param where path="%s"' % param_path.replace('\\', '\\\\'))
         self.his_dialog.get_param_info(results[0][2], results[0][3], results[0][4],
                                        results[0][5], results[0][6], results[0][7])
+
+    def deleteHistory(self, predict_path, shadow_path, media_type):
+        msg = QMessageBox.warning(self, '确认', '确认删除这条记录吗？本地预测文件也会被删除！', QMessageBox.Yes | QMessageBox.No,
+                                  QMessageBox.No)
+        if msg == QMessageBox.Yes:
+            dir_path = IMAGE_PATH if media_type == '图片' else VIDEO_PATH
+            db_delete('delete from tb_record where path="%s"' % predict_path)
+            for file_path in os.listdir(dir_path):
+                if file_path in (os.path.split(predict_path)[-1], os.path.split(shadow_path)[-1]):
+                    os.remove(os.path.join(dir_path, file_path))
+            QMessageBox.information(self, '完成', '删除成功！', QMessageBox.Ok, QMessageBox.Ok)
+            self.get_list()
+            self.his_dialog.pushButton.disconnect()
+
+    def expandImage(self, path):
+        img = cv2.imread(path)
+        cv2.imshow('image', img)
+        if cv2.getWindowProperty("image", cv2.WND_PROP_AUTOSIZE) < 1:
+            cv2.destroyAllWindows()
+
+    def expandVideo(self, path):
+        cap = cv2.VideoCapture(path)
+        cv2.destroyWindow('image')
+        while True:
+            ret, frame = cap.read()
+            # show a frame
+            if ret:
+                cv2.imshow("video", frame)
+            else:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            cv2.waitKey(int(1000 / cap.get(cv2.CAP_PROP_FPS)))
+            if cv2.getWindowProperty("video", cv2.WND_PROP_AUTOSIZE) < 1:
+                break
+        cap.release()
+        cv2.destroyAllWindows()
+
+    def video_play_change(self):
+        self.video_is_play = bool(1 - self.video_is_play)
+        if self.video_is_play:
+            self.his_dialog.player_1.play()
+            self.his_dialog.player_2.play()
+            self.his_dialog.pushButton_4.setText('暂停')
+        else:
+            self.his_dialog.player_1.pause()
+            self.his_dialog.player_2.pause()
+            self.his_dialog.pushButton_4.setText('播放')
 
 
 class msg_dialog(QDialog):
@@ -407,7 +501,9 @@ class Ui_ShadowRCNN(QWidget):
 
     def ARP_predict(self, mode='image'):
         shadow_write_path, shadow_write_name = os.path.split(PARAMS['imgPath'])
-        shadow_write_name = shadow_write_name.split('.')[0] + '_shadow' + '.' + shadow_write_name.split('.')[1]
+        shadow_write_name = shadow_write_name.split('.')[0] + '_shadow_' \
+                            + datetime.datetime.now().strftime('%Y%m%d%H%M%S') + '.' \
+                            + shadow_write_name.split('.')[1]
         self.shadow_write_path = os.path.join(shadow_write_path, shadow_write_name)
         print(self.shadow_write_path)
         if mode == 'image':
@@ -438,7 +534,9 @@ class Ui_ShadowRCNN(QWidget):
 
     def rcnn_predict(self, mode='image'):
         rcnn_write_path, rcnn_write_name = os.path.split(PARAMS['imgPath'])
-        rcnn_write_name = rcnn_write_name.split('.')[0] + '_rcnn' + '.' + rcnn_write_name.split('.')[1]
+        rcnn_write_name = rcnn_write_name.split('.')[0] + '_rcnn_' \
+                          + datetime.datetime.now().strftime('%Y%m%d%H%M%S') \
+                          + '.' + rcnn_write_name.split('.')[1]
         self.rcnn_write_path = os.path.join(rcnn_write_path, rcnn_write_name)
         print(self.rcnn_write_path)
         if mode == 'image':
@@ -472,8 +570,9 @@ class Ui_ShadowRCNN(QWidget):
             self.video_is_play = True
             self.pushButton_play.setText('暂停')
         if not self.is_guest:
-            sql = 'insert into tb_record(path,type,user_id,param_id,time)values("%s","%s",%s,%s,"%s")' \
-                  % (self.rcnn_write_path.replace('\\', '/'), mode, self.user_id, self.param_id,
+            sql = 'insert into tb_record(path,shadow,type,user_id,param_id,time)values("%s","%s","%s",%s,%s,"%s")' \
+                  % (str(self.rcnn_write_path).replace('\\', '/'), str(self.shadow_write_path).replace('\\', '/'),
+                     mode, self.user_id, self.param_id,
                      str(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
             db_insert(sql)
 
@@ -574,6 +673,7 @@ class Ui_ShadowRCNN(QWidget):
             # 纵向拼接
             continue_photo = np.vstack([continue_list_middle[0], continue_list_middle[1], continue_list_middle[2]])
             # 展示结果
+            # TODO 连拍的路径要改
             continue_photo_name = '../images/' + self.continue_list[0][:-10] + '_9in1.jpg'
             PARAMS['imgPath'] = continue_photo_name
             PARAMS['all_file_path'].append(continue_photo_name)
@@ -613,11 +713,11 @@ class Ui_ShadowRCNN(QWidget):
         self.label.clear()
         self.player.setMedia(QMediaContent())
         file_num = 0
+        # TODO 连拍删除崩溃
         for file_name in PARAMS['all_file_path']:
             if os.path.exists(file_name):
                 os.remove(file_name)
                 if '_rcnn' in file_name:
-                    print(file_name)
                     sql = 'delete from tb_record where path="%s"' % file_name.replace('\\', '/')
                     db_delete(sql)
                 file_num += 1

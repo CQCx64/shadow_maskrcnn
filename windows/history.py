@@ -11,6 +11,8 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QStandardItemModel
+from PyQt5.QtMultimedia import QMediaPlayer
+from PyQt5.QtMultimediaWidgets import QVideoWidget
 
 
 class Ui_Dialog(object):
@@ -33,6 +35,19 @@ class Ui_Dialog(object):
         self.label.setObjectName("label")
         self.label_2 = QtWidgets.QLabel(Dialog)
         self.label_2.setGeometry(QtCore.QRect(890, 280, 720, 405))
+
+        self.wgt_video_1 = QVideoWidget(Dialog)
+        self.wgt_video_1.setGeometry(QtCore.QRect(50, 280, 720, 405))
+        self.player_1 = QMediaPlayer()
+        self.player_1.setVideoOutput(self.wgt_video_1)
+        self.wgt_video_1.setObjectName("widget")
+
+        self.wgt_video_2 = QVideoWidget(Dialog)
+        self.wgt_video_2.setGeometry(QtCore.QRect(890, 280, 720, 405))
+        self.player_2 = QMediaPlayer()
+        self.player_2.setVideoOutput(self.wgt_video_2)
+        self.wgt_video_2.setObjectName("widget")
+
         font = QtGui.QFont()
         font.setPointSize(12)
         self.label_2.setFont(font)
@@ -55,6 +70,30 @@ class Ui_Dialog(object):
         font.setWeight(75)
         self.label_3.setFont(font)
         self.label_3.setObjectName("label_3")
+        self.pushButton = QtWidgets.QPushButton(Dialog)
+        self.pushButton.setGeometry(QtCore.QRect(780, 280, 101, 31))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.pushButton.setFont(font)
+        self.pushButton.setObjectName("pushButton")
+        self.pushButton_2 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_2.setGeometry(QtCore.QRect(780, 320, 51, 31))
+        self.pushButton_2.setObjectName("pushButton_2")
+        self.pushButton_3 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_3.setGeometry(QtCore.QRect(830, 320, 51, 31))
+        self.pushButton_3.setObjectName("pushButton_3")
+        self.pushButton_5 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_5.setGeometry(QtCore.QRect(780, 320, 51, 31))
+        self.pushButton_5.setObjectName("pushButton_2")
+        self.pushButton_6 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_6.setGeometry(QtCore.QRect(830, 320, 51, 31))
+        self.pushButton_6.setObjectName("pushButton_3")
+        self.pushButton_4 = QtWidgets.QPushButton(Dialog)
+        self.pushButton_4.setGeometry(QtCore.QRect(780, 360, 101, 31))
+        font = QtGui.QFont()
+        font.setPointSize(10)
+        self.pushButton_4.setFont(font)
+        self.pushButton_4.setObjectName("pushButton_4")
 
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
@@ -67,6 +106,12 @@ class Ui_Dialog(object):
         self.groupBox.setTitle(_translate("Dialog", "参数信息"))
         self.label_3.setText(_translate("Dialog", "用户XXX历史检测结果"))
         self.label_4.setText(_translate("Dialog", "准确率：-；召回率：-；学习率：-；训练步数：-；损失：-；参数发行日期：-；"))
+        self.pushButton.setText(_translate("Dialog", "删除记录"))
+        self.pushButton_2.setText(_translate("Dialog", "放大"))
+        self.pushButton_3.setText(_translate("Dialog", "放大"))
+        self.pushButton_4.setText(_translate("Dialog", "播放"))
+        self.pushButton_5.setText(_translate("Dialog", "放大"))
+        self.pushButton_6.setText(_translate("Dialog", "放大"))
 
     def createHistoryModel(self, parent):
         model = QStandardItemModel(0, 5, parent)
