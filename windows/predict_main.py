@@ -40,8 +40,9 @@ RCNN_MODEL = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=False
 RCNN_PATH = '../param/model_new_1.pth'
 PARAMS = {}
 PARAMS['all_file_path'] = []
-IMAGE_PATH = '../images/'
-VIDEO_PATH = '../videos/'
+
+IMAGE_PATH = os.path.abspath('../images/')
+VIDEO_PATH = os.path.abspath('../videos/')
 
 
 class history_dialog(QDialog):
@@ -151,6 +152,10 @@ class history_dialog(QDialog):
             QMessageBox.information(self, '完成', '删除成功！', QMessageBox.Ok, QMessageBox.Ok)
             self.get_list()
             self.his_dialog.pushButton.disconnect()
+            self.his_dialog.label.clear()
+            self.his_dialog.label_2.clear()
+            self.his_dialog.player_1.setMedia(QMediaContent())
+            self.his_dialog.player_2.setMedia(QMediaContent())
 
     def expandImage(self, path):
         img = cv2.imread(path)
@@ -344,8 +349,8 @@ class Ui_ShadowRCNN(QWidget):
         if success:
             global IMAGE_PATH
             global VIDEO_PATH
-            IMAGE_PATH += self.user_name
-            VIDEO_PATH += self.user_name
+            IMAGE_PATH = os.path.join(IMAGE_PATH, self.user_name)
+            VIDEO_PATH = os.path.join(VIDEO_PATH, self.user_name)
             if not os.path.exists(IMAGE_PATH):
                 os.makedirs(IMAGE_PATH)
             if not os.path.exists(VIDEO_PATH):
@@ -611,7 +616,7 @@ class Ui_ShadowRCNN(QWidget):
                 cv2.imshow("Capture", frame)
 
                 if cv2.waitKey(1) == ord('q'):
-                    cap_name = '../images/capimg_' + str(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')) + '.jpg'
+                    cap_name = IMAGE_PATH + '/capimg_' + str(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')) + '.jpg'
                     cv2.imwrite(cap_name, frame)
                     jpg = QtGui.QPixmap(cap_name).scaled(self.label.width(), self.label.height())
                     self.label.setPixmap(jpg)
@@ -648,7 +653,7 @@ class Ui_ShadowRCNN(QWidget):
         ret, frame = self.cap.read()
         # show a frame
         cv2.imshow("Capture", frame)
-        image_name = '../images/capimg_' + str(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')) + '.jpg'
+        image_name = IMAGE_PATH + '/capimg_' + str(datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')) + '.jpg'
         cv2.imwrite(image_name, frame)
         PARAMS['all_file_path'].append(image_name)
         self.continue_list.append(image_name)
@@ -673,8 +678,7 @@ class Ui_ShadowRCNN(QWidget):
             # 纵向拼接
             continue_photo = np.vstack([continue_list_middle[0], continue_list_middle[1], continue_list_middle[2]])
             # 展示结果
-            # TODO 连拍的路径要改
-            continue_photo_name = '../images/' + self.continue_list[0][:-10] + '_9in1.jpg'
+            continue_photo_name = os.path.join(IMAGE_PATH, self.continue_list[0][:-10] + '_9in1.jpg')
             PARAMS['imgPath'] = continue_photo_name
             PARAMS['all_file_path'].append(continue_photo_name)
             cv2.imwrite(continue_photo_name, continue_photo)
@@ -710,10 +714,7 @@ class Ui_ShadowRCNN(QWidget):
             self.pushButton_play.setText('播放')
 
     def delete(self):
-        self.label.clear()
-        self.player.setMedia(QMediaContent())
         file_num = 0
-        # TODO 连拍删除崩溃
         for file_name in PARAMS['all_file_path']:
             if os.path.exists(file_name):
                 os.remove(file_name)
@@ -722,6 +723,8 @@ class Ui_ShadowRCNN(QWidget):
                     db_delete(sql)
                 file_num += 1
         self.statusbar.showMessage('缓存清除成功，共' + str(file_num) + '个文件')
+        self.label.clear()
+        self.player.setMedia(QMediaContent())
 
     def history(self):
         self.his_dialog = history_dialog(self.user_id, self.user_name)
