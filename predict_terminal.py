@@ -18,7 +18,7 @@ IMG_PATH = 'images/strasbourg_000000_022067_leftImg8bit.png'
 ARP_PATH = 'param/res34_bcam_parallel_625_0.2043_0.945_9.74.params'
 SHADOW_PERCENT = 0.5
 
-NUM_CLASS = 10
+NUM_CLASS = 5
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 RCNN_MODEL = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=False, num_classes=NUM_CLASS)
 CTX = utils.try_all_gpus()
@@ -85,23 +85,13 @@ def rcnn_predict(return_dict, img, show_cv=True, model_path='param/model_new.pth
 
 
 if __name__ == '__main__':
-    imgPath = 'videos/demo_Trim.mp4'
-    video_capture = cv2.VideoCapture(imgPath)
-    fps = int(video_capture.get(cv2.CAP_PROP_FPS))
-    size = (int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-    shadow_write_path, shadow_write_name = os.path.split(imgPath)
-    shadow_write_name = shadow_write_name.split('.')[0] + '_shadow' + '.' + shadow_write_name.split('.')[1]
-    shadow_write_path = os.path.join(shadow_write_path, shadow_write_name)
-    video_shadow_writer = cv2.VideoWriter(shadow_write_path, cv2.VideoWriter_fourcc('I', '4', '2', '0'),
-                                          fps, size)
-    _, img = video_capture.read()
+    imgPath = r'D:\python\projects\shadow_maskrcnn\images\strasbourg_000000_004951_leftImg8bit.png'
+
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
-    p = multiprocessing.Process(target=ARP_predict, args=(return_dict, img))
+    p = multiprocessing.Process(target=ARP_predict, args=(return_dict, imgPath))
     p.start()
     p.join()
     arp_result = return_dict.values()[0]
 
     rcnn_predict(return_dict, arp_result)
-    video_shadow_writer.write(return_dict[0])
-    video_shadow_writer.release()

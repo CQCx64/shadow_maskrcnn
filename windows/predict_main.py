@@ -34,10 +34,10 @@ ARP_MODEL_NAME = 'res34_cbam_parallel'
 ARP_PATH = '../param/res34_bcam_parallel_625_0.2043_0.945_9.74.params'
 SHADOW_PERCENT = 0.5
 
-NUM_CLASS = 10
+NUM_CLASS = 5
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 RCNN_MODEL = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=False, num_classes=NUM_CLASS)
-RCNN_PATH = '../param/model_new_1.pth'
+RCNN_PATH = '../param/model_5class_instance.pth'
 PARAMS = {}
 PARAMS['all_file_path'] = []
 
