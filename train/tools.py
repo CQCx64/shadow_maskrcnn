@@ -1,9 +1,11 @@
+import os
+
 import cv2
 import numpy as np
 from PIL import Image
 import torch
 
-names = {'0': 'backgroud', '1': 'person',  '2': 'rider', '3': 'car', '4': 'bus'}
+names = {'0': 'backgroud', '1': 'person', '2': 'rider', '3': 'car', '4': 'bus'}
 color = {'0': (0, 0, 0), '1': (255, 0, 0), '2': (255, 255, 0), '3': (95, 158, 160), '4': (148, 0, 211)}
 
 
@@ -44,7 +46,7 @@ def detect_label(img):
     msg = '图片包含'
     msg += str(len(obj_ids)) + '个个体: '
     for i in obj_ids:
-        idx = i//1000 if i//1000 >= 1 else i
+        idx = i // 1000 if i // 1000 >= 1 else i
         msg += str(i) + names.get(str(idx)) + ' '
     print(msg)
     return obj_ids
@@ -63,10 +65,72 @@ def draw_box(mask, obj_ids):
         ymax = np.max(pos[0])
         boxes.append([xmin, ymin, xmax, ymax])
     print('boxes: ', boxes)
-    obj_ids = np.where(obj_ids//1000 >= 1, obj_ids//1000, obj_ids)
+    obj_ids = np.where(obj_ids // 1000 >= 1, obj_ids // 1000, obj_ids)
     labels = torch.tensor(obj_ids, dtype=torch.int64)
     print('label: ', labels)
     return boxes
+
+
+def label_operation(train_root, val_root):
+    """处理空label和错误label"""
+    empty = 0
+    wrong = 0
+    delete_list = []
+
+    for root in (train_root, val_root):
+        image_list = list(sorted(os.listdir(root + 'images')))
+        mask_list = list(sorted(os.listdir(root + 'mask')))
+
+        for i in range(len(image_list)):
+            img_path = os.path.join(root + 'images', image_list[i])
+            mask_path = os.path.join(root + 'mask', mask_list[i])
+            img = Image.open(img_path).convert("RGB").resize((512, 256), 1)
+            mask = Image.open(mask_path).resize((512, 256), 0)
+
+            mask = np.array(mask)
+            # instances are encoded as different colors
+            obj_ids = np.unique(mask)
+            # first id is the background, so remove it
+            obj_ids = obj_ids[1:]
+
+            # split the color-encoded mask into a set
+            # of binary masks
+            masks = mask == obj_ids[:, None, None]
+
+            # get bounding box coordinates for each mask
+            num_objs = len(obj_ids)
+            boxes = []
+            for i in range(num_objs):
+                pos = np.where(masks[i])
+                xmin = np.min(pos[1])
+                xmax = np.max(pos[1])
+                ymin = np.min(pos[0])
+                ymax = np.max(pos[0])
+                if ymax - ymin > 1 and xmax - xmin > 1:
+                    boxes.append([xmin, ymin, xmax, ymax])
+
+            boxes = torch.as_tensor(boxes, dtype=torch.float32)
+
+            if boxes.size()[0] == 0:
+                # print(img_path, "  ", boxes.size()[0])
+                empty += 1
+                if img_path not in delete_list and mask_path not in delete_list:
+                    delete_list.append(img_path)
+                    delete_list.append(mask_path)
+
+            obj_ids = np.where(obj_ids // 1000 >= 1, obj_ids // 1000, obj_ids)
+            if len(np.where(np.array(obj_ids) > 4)[0]) > 0:
+                # print(mask_path, "  ", boxes.size()[0])
+                wrong += 1
+                if img_path not in delete_list and mask_path not in delete_list:
+                    delete_list.append(img_path)
+                    delete_list.append(mask_path)
+
+    for path in delete_list:
+        if os.path.exists(path):
+            os.remove(path)
+
+    print(wrong, '错 空', empty)
 
 
 if __name__ == '__main__':
